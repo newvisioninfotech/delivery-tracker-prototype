@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Delivery Tracker</title>
+  <!--
+    Delivery Tracker - Prototype (HTML version of delivery_tracker.py)
+    Problem: "A customer wants to see when their order will arrive."
+
+    Fixed (things we know):
+      - The customer has placed an order and wants an arrival date.
+      - Different shipping options take different amounts of time.
+
+    Assumed (left out on purpose - to test later):
+      - Delivery times: Standard = 5 days, Express = 2 days.
+      - Regional areas take 2 extra days.
+      - Weekends, public holidays and courier delays are ignored.
+      - No real order database or live courier tracking yet.
+  -->
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f2f4f7;
+      color: #222;
+      margin: 0;
+      padding: 16px;
+    }
+    .card {
+      max-width: 480px;
+      margin: 24px auto;
+      background: #fff;
+      border-radius: 10px;
+      padding: 24px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    h1 { margin-top: 0; font-size: 1.5rem; }
+    label { display: block; margin-top: 14px; font-weight: bold; }
+    input, select {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px;
+      margin-top: 4px;
+      font-size: 1rem;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+    button {
+      margin-top: 20px;
+      width: 100%;
+      padding: 10px;
+      font-size: 1rem;
+      background: #0b6bcb;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    button:hover { background: #0956a3; }
+    #result {
+      display: none;
+      margin-top: 20px;
+      padding: 16px;
+      background: #eef6ff;
+      border-left: 4px solid #0b6bcb;
+      border-radius: 6px;
+    }
+    #result p { margin: 6px 0; }
+    .status { font-size: 1.1rem; font-weight: bold; }
+    .error { color: #b00020; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>📦 Order Delivery Tracker</h1>
+    <p>Find out when your order will arrive.</p>
+
+    <label for="orderNumber">Order number</label>
+    <input type="text" id="orderNumber" placeholder="e.g. AB123">
+
+    <label for="daysAgo">How many days ago did you place the order?</label>
+    <input type="number" id="daysAgo" min="0" value="0">
+
+    <label for="shipping">Shipping method</label>
+    <select id="shipping">
+      <option value="standard">Standard (5 days)</option>
+      <option value="express">Express (2 days)</option>
+    </select>
+
+    <label for="area">Delivery area</label>
+    <select id="area">
+      <option value="metro">Metro</option>
+      <option value="regional">Regional (+2 days)</option>
+    </select>
+
+    <button onclick="trackOrder()">Track my order</button>
+
+    <p class="error" id="error"></p>
+
+    <div id="result">
+      <p><strong>Order:</strong> <span id="outOrder"></span></p>
+      <p><strong>Placed on:</strong> <span id="outPlaced"></span></p>
+      <p><strong>Shipping:</strong> <span id="outShipping"></span></p>
+      <p><strong>Estimated arrival:</strong> <span id="outArrival"></span></p>
+      <p class="status">Status: <span id="outStatus"></span></p>
+    </div>
+  </div>
+
+  <script>
+    const STANDARD_DAYS = 5;
+    const EXPRESS_DAYS = 2;
+    const REGIONAL_EXTRA_DAYS = 2;
+
+    // Show a date like "Tuesday 06 October 2026"
+    function formatDate(d) {
+      return d.toLocaleDateString("en-AU", {
+        weekday: "long", day: "2-digit", month: "long", year: "numeric"
+      });
+    }
+
+    function addDays(d, days) {
+      const copy = new Date(d);
+      copy.setDate(copy.getDate() + days);
+      return copy;
+    }
+
+    function trackOrder() {
+      // ----- Input -----
+      const orderNumber = document.getElementById("orderNumber").value.trim().toUpperCase();
+      const daysAgo = parseInt(document.getElementById("daysAgo").value);
+      const shipping = document.getElementById("shipping").value;
+      const area = document.getElementById("area").value;
+
+      const error = document.getElementById("error");
+      error.textContent = "";
+      if (orderNumber === "" || isNaN(daysAgo) || daysAgo < 0) {
+        error.textContent = "Please enter an order number and a valid number of days.";
+        document.getElementById("result").style.display = "none";
+        return;
+      }
+
+      // ----- Work out how long delivery takes -----
+      let deliveryDays;
+      if (shipping === "express") {
+        deliveryDays = EXPRESS_DAYS;
+      } else {
+        deliveryDays = STANDARD_DAYS;
+      }
+      if (area === "regional") {
+        deliveryDays = deliveryDays + REGIONAL_EXTRA_DAYS;
+      }
+
+      // ----- Calculate the dates -----
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const orderDate = addDays(today, -daysAgo);
+      const arrivalDate = addDays(orderDate, deliveryDays);
+      const daysLeft = Math.round((arrivalDate - today) / (1000 * 60 * 60 * 24));
+
+      // ----- Decide the order status -----
+      let status;
+      if (daysAgo === 0) {
+        status = "Order received - being packed";
+      } else if (daysLeft > 1) {
+        status = "In transit";
+      } else if (daysLeft === 1) {
+        status = "Arriving tomorrow";
+      } else if (daysLeft === 0) {
+        status = "Out for delivery - arriving today";
+      } else {
+        status = "Should have been delivered - please contact support";
+      }
+
+      // ----- Output -----
+      const shippingName = shipping.charAt(0).toUpperCase() + shipping.slice(1);
+      document.getElementById("outOrder").textContent = orderNumber;
+      document.getElementById("outPlaced").textContent = formatDate(orderDate);
+      document.getElementById("outShipping").textContent = shippingName + " (" + deliveryDays + " days)";
+      document.getElementById("outArrival").textContent = formatDate(arrivalDate);
+      document.getElementById("outStatus").textContent = status;
+      document.getElementById("result").style.display = "block";
+    }
+  </script>
+</body>
+</html>
